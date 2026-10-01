@@ -124,3 +124,5 @@ Je tiens un DEVLOG.md (blocages, erreurs, décisions) et un
 AI_POLICY.md. Rappelle-moi de les mettre à jour en fin de jalon.
 Les idées hors périmètre vont dans IDEES.md et ne sont pas traitées
 avant le jalon 8.
+
+@MEMOIRE.MD
