@@ -1,0 +1,23 @@
+# Dépendances
+node_modules/
+
+# Build Next.js
+.next/
+out/
+build/
+
+# Secrets et environnement
+.env
+.env*.local
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+
+# Claude Code (réglages locaux à la machine)
+.claude/settings.local.json
+
+# Système / éditeur
+.DS_Store
+*.log
