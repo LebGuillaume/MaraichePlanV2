@@ -64,3 +64,4 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 ---
 
 [généré par IA] DEVLOG.md (entrée du 2026-10-01) - 2026-10-01
+[généré par IA] MEMOIRE.md, .gitignore - 2026-10-01
