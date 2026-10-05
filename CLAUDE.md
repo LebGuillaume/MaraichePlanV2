@@ -41,6 +41,47 @@ détection de conflits d'occupation, rotations, tableau de bord
   un Client Component.
 - `e2e/` : tests Playwright.
 
+### Architecture n-tier
+L'application est découpée en couches. Une couche ne dépend que de la
+couche en dessous (ou du domaine), jamais de celle au-dessus :
+
+1. **Présentation** (`src/app/`, `src/components/`) : pages, Route
+   Handlers, Server Actions, composants. Elle reçoit la requête, valide
+   l'entrée (Zod) et délègue à un service. Aucune logique métier, aucun
+   accès direct à Prisma.
+2. **Application / services** (`src/lib/services/`) : cas d'usage
+   (« planifier une culture », « lister les planches libres »). Ce
+   sont eux qui orchestrent : vérification des droits sur
+   l'exploitation, appel au domaine, appel aux repositories, traduction
+   des erreurs en erreurs métier.
+3. **Domaine** (`src/lib/domain/`) : règles métier pures et types du
+   domaine. Le domaine définit aussi les **interfaces** des
+   repositories dont il a besoin.
+4. **Accès aux données** (`src/lib/db/`) : implémentations des
+   repositories avec Prisma. Le mapping Prisma vers les types du domaine
+   se fait ici.
+
+Sens des dépendances : présentation → services → domaine ← db.
+La couche db implémente les interfaces du domaine (inversion de
+dépendance), donc le domaine n'importe jamais rien de la couche db.
+
+### Principes SOLID
+- **S (responsabilité unique)** : un module = une raison de changer.
+  Un Route Handler ne valide pas ET ne calcule pas ET ne requête pas.
+- **O (ouvert/fermé)** : ajouter une règle (de rotation, par exemple)
+  ne doit pas obliger à modifier les règles existantes.
+- **L (substitution de Liskov)** : toute implémentation d'un repository
+  (Prisma, ou en mémoire pour les tests) respecte le même contrat,
+  erreurs comprises.
+- **I (ségrégation des interfaces)** : des interfaces petites et
+  ciblées (`CultureRepository`, pas un `DatabaseService` fourre-tout).
+- **D (inversion de dépendance)** : les services reçoivent leurs
+  repositories par injection (paramètre ou fabrique), ils ne les
+  instancient pas. C'est ce qui rend les services testables sans base.
+- Pragmatisme : SOLID sert la testabilité et la lisibilité. Pas
+  d'abstraction sans besoin concret (pas d'interface pour un seul
+  appelant trivial, pas de couche vide « pour faire propre »).
+
 ## Mode de travail (socratique par défaut)
 - Ne m'écris pas de code. Pose-moi des questions pour que je trouve.
 - Si je bloque : d'abord un indice, ensuite une piste, en tout dernier
@@ -62,6 +103,11 @@ détection de conflits d'occupation, rotations, tableau de bord
   ne détecteraient-ils pas ?".
 - Si je dis "terminé" : vérifie la définition de "terminé" du jalon.
 - Fin de session : résume ce que j'ai appris et ce qui reste fragile.
+- Pour chaque nouveau module : demande-moi dans quelle couche il va,
+  de quoi il dépend, et quel principe SOLID il risque de violer.
+- Si j'importe Prisma hors de `src/lib/db/`, ou si je mets de la
+  logique métier dans un Route Handler, pose-moi la question qui me
+  fait voir la violation de couche.
 - Reste sur UN jalon à la fois. Si je dérive, ramène-moi au jalon.
 
 ## Exception : génération de code
@@ -125,4 +171,4 @@ AI_POLICY.md. Rappelle-moi de les mettre à jour en fin de jalon.
 Les idées hors périmètre vont dans IDEES.md et ne sont pas traitées
 avant le jalon 8.
 
-@MEMOIRE.MD
+@MEMOIRE.md
