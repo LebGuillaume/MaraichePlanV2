@@ -23,18 +23,21 @@ fin de session. Le détail des décisions est dans [DEVLOG.md](DEVLOG.md).
     = interdit (btree_gist + daterange)
   - commence à l'implantation (plantation ou semis direct)
   - fin le jour J et début le jour J = pas de conflit
+  - **bornes `[)`, en jours** (pas d'heure) ; date de fin = premier jour où
+    la planche est libre = date saisie et affichée, sans conversion ±1 jour
 - Tâches : le semis en pépinière est une tâche, pas une partie de l'intervalle
   de la culture.
 
 ## Prochaine étape
 
-Répondre à la question en suspens :
-> La règle « fin le jour J / début le jour J = pas de conflit » est décidée,
-> mais le choix des bornes `[]` / `[)` est encore ouvert. Pourquoi ces deux
-> points sont-ils liés, et lequel des deux choix de bornes contredit la règle ?
+Bornes tranchées (`[)`). Deux questions en suspens à finir d'abord :
+> 1. Quel nom de champ / colonne pour la date de fin, pour qu'on ne la
+>    confonde pas avec le « dernier jour de récolte » ?
+> 2. En une ligne, avec `<` ou `<=` : quand `[a, b)` et `[c, d)` se
+>    chevauchent-ils ? (pour que le domaine donne le même verdict que PostgreSQL)
 
 Puis traiter, dans l'ordre, les questions ouvertes du DEVLOG :
-1. bornes de l'intervalle et sens de la date de fin
+1. ~~bornes de l'intervalle et sens de la date de fin~~ (fait)
 2. source de vérité de la date d'implantation (tâche ou culture)
 3. lien Tâche → Culture (obligatoire ou non)
 4. Parcelle–Planche, Légume/Espèce/famille botanique, propriétaire du catalogue
