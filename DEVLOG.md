@@ -78,10 +78,13 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 - [x] Condition de chevauchement de `[a, b)` et `[c, d)` en TypeScript (domaine,
       jalon 5), qui doit donner le même verdict que PostgreSQL (voir entrée du
       2026-10-05).
-- [ ] Source de vérité de la date d'implantation : la tâche « plantation » ou
+- [x] Source de vérité de la date d'implantation : la tâche « plantation » ou
       le début de l'intervalle de la culture ? (risque de désynchronisation)
+      → `Culture.datePlancheOccupee` seule (voir entrée du 2026-10-06).
 - [ ] Lien Tâche → Culture : comment rattacher le semis en pépinière à sa
       culture ? Ce lien est-il obligatoire (désherbage sur une planche vide) ?
+      → Sens tranché le 2026-10-06 (`Tache.cultureId`), obligatoire ou non :
+      encore ouvert.
 - [ ] Parcelle–Planche : N-N sur le schéma papier. Une planche peut-elle
       vraiment appartenir à deux parcelles ?
 - [ ] Légume / Espèce : sens de la relation, et où placer la famille botanique
@@ -145,6 +148,109 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 - **Portée des contraintes** : FK (vers une autre table), UNIQUE et EXCLUSION
   (entre lignes), CHECK (une ligne seule).
 
+## 2026-10-06 — Jalon 1 : modélisation (sur papier)
+
+### Décisions
+
+- **Pas de tâche « plantation » : la date d'implantation n'existe que dans
+  `Culture.datePlancheOccupee`.**
+  Pourquoi : un fait stocké une seule fois ne peut pas diverger. C'est cette
+  colonne que la contrainte d'exclusion protège, c'est donc elle qui fait foi.
+  Cas de référence : poireaux prévus le 15 mai, plantés le 22. On corrige une
+  seule date, rien à synchroniser.
+  Écartés :
+  - (i) une tâche plantation avec sa propre date, égale à `datePlancheOccupee` :
+    deux copies du même fait. Aucune contrainte en base ne peut garantir
+    l'égalité (un CHECK ne voit qu'une ligne, et les dates sont dans deux
+    tables). Une panne entre les deux `update` laisse la base incohérente.
+  - (ii) une tâche plantation sans date (`NULL`), qui lit la date dans la
+    culture : la ligne n'apprend rien que la culture ne dise déjà. Elle
+    imposerait en plus un CHECK (« plantation ⇒ date nulle ») et un index unique
+    partiel (une seule plantation par culture), pour une ligne inutile.
+  - Synchronisation par service, transaction ou trigger : elle oblige à
+    protéger chaque chemin d'écriture (écran culture, écran tâches…), et un
+    futur chemin peut l'oublier.
+
+- **Mode d'implantation : colonne `modeImplantation` sur `Culture`, enum
+  obligatoire (plantation, semis direct).**
+  Pourquoi une colonne et pas une tâche : une culture a exactement un mode
+  d'implantation, c'est un attribut. Une tâche est un événement qui peut se
+  produire 0 ou N fois (désherbages, récoltes).
+  Pourquoi un enum : un texte libre laisserait passer `"Plantation"`,
+  `"plantation "`, `"plant."`, et le tableau de bord les compterait à part.
+  Pourquoi obligatoire : toute culture commence par l'une ou l'autre.
+  (Justifications de l'enum et du caractère obligatoire formulées par l'IA.)
+  À vérifier plus tard : ajouter une valeur (ex. bouturage) demandera une
+  migration. Quel SQL sera généré ? À relire dans le `migration.sql`.
+
+- **Relation Culture → Tâche : 1-N, clé étrangère `Tache.cultureId`.**
+  Pourquoi : une colonne ne contient qu'une valeur, donc `Culture.tacheId` ne
+  pourrait désigner qu'une seule tâche. Une table intermédiaire ne sert que pour
+  le N-N, or une tâche appartient à une seule culture.
+  À prévoir : PostgreSQL n'indexe pas une FK automatiquement. Il faudra un index
+  sur `Tache.cultureId` (requête fréquente : les tâches d'une culture).
+  Encore ouvert : `cultureId` obligatoire ou non (désherbage sur une planche
+  vide, semis en pépinière sans planche).
+
+- **Une tâche peut être prévue ou réalisée : deux colonnes `datePrevue` et
+  `dateRealisation`, toutes deux facultatives.**
+  Pourquoi : le tableau de bord « récoltes à 30 jours » doit lire des récoltes
+  qui n'ont pas encore eu lieu. La ligne de tâche existe donc à l'avance.
+  Une seule colonne `date` perdait une information : récolte prévue le 1er oct,
+  faite le 5. Soit on perd la date réelle, soit on perd le retard.
+  `dateRealisation` à `NULL` = tâche pas encore faite.
+  `datePrevue` facultative : une tâche imprévue (désherbage fait en voyant les
+  adventices lever) s'enregistre après coup, sans date prévue.
+  Écarté : un booléen `realisee`. Il se déduit de `dateRealisation IS NOT NULL`.
+  Le garder ferait deux informations qui peuvent se contredire
+  (`realisee = false` avec une date de réalisation remplie).
+
+- **CHECK `"datePrevue" IS NOT NULL OR "dateRealisation" IS NOT NULL` sur
+  `Tache`.**
+  Pourquoi : une tâche ni prévue ni faite ne représente rien. La règle ne porte
+  que sur une ligne, c'est donc un CHECK. `OR` et pas `AND` : il faut pouvoir
+  enregistrer une tâche prévue pas encore faite, et une tâche imprévue faite.
+  Prisma ne gère pas les CHECK : migration SQL personnalisée.
+  (Réponse donnée par l'IA à la demande, pas trouvée seul.)
+
+- **Pas de CHECK `dateRealisation >= datePrevue`.**
+  Pourquoi : une récolte faite plus tôt que prévu (poireaux prêts en avance) est
+  un cas métier normal. Une contrainte interdit l'impossible, pas l'inhabituel.
+
+- **La date de première récolte n'est pas stockée : elle se calcule.**
+  `MIN(dateRealisation)` sur les tâches de type récolte de la culture.
+  Pourquoi : la stocker dans `Culture` créerait une copie qui diverge dès qu'on
+  supprime ou corrige une récolte (même raisonnement que pour la plantation).
+
+### Appris
+
+- **Normalisation (source unique de vérité)** : stocker un fait à un seul
+  endroit rend la divergence impossible par construction, au lieu de
+  l'interdire par une règle qu'il faut maintenir.
+- **Attribut ou événement** : ce qui existe exactement une fois par entité est
+  une colonne de cette entité. Ce qui peut arriver 0 ou N fois est une ligne
+  d'une autre table.
+- **Dans une 1-N, la FK va du côté N.** À réutiliser pour Exploitation →
+  Parcelle et Parcelle → Planche.
+- **Une FK pointe vers une ligne (son id), pas vers une valeur.** On lit la
+  date de la culture en suivant la FK (jointure), on ne la recopie pas.
+- Erreur commise : passer de (iii) à (i), puis à (ii), par élimination plutôt
+  que par argument. Le tableau d'exemple (lignes C1, T1, T2) a débloqué le
+  raisonnement.
+- **Donnée calculée plutôt que stockée** : ce qui se déduit d'autres lignes
+  (`MIN`, `COUNT`, `IS NOT NULL`) ne se stocke pas, sinon c'est une copie à
+  synchroniser.
+- **Prévu / réalisé** : une seule date mélange le plan et le fait. Deux dates
+  permettent de mesurer l'écart (retard, avance).
+- **`NULL` en SQL** : `x <> NULL` vaut `NULL`, jamais vrai. Un CHECK qui vaut
+  `NULL` est considéré comme satisfait : il faut écrire `IS NOT NULL`, sinon la
+  contrainte laisse tout passer sans erreur.
+
+### Questions ouvertes
+
+- [ ] Le raisonnement « prévu / réalisé » vaut-il aussi pour
+      `Culture.datePlancheOccupee` (et `datePlancheDisponible`) ?
+
 ---
 
 [généré par IA] DEVLOG.md (entrée du 2026-10-01) - 2026-10-01
@@ -153,3 +259,7 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 [généré par IA] DEVLOG.md (nommage des bornes de Culture, condition de chevauchement) - 2026-10-05
 [généré par IA] Choix de stockage des dates de Culture (deux `date` vs `daterange`) - 2026-10-05
 [généré par IA] MEMOIRE.md (mise à jour après les décisions du 2026-10-05) - 2026-10-06
+[généré par IA] DEVLOG.md (source de vérité de la date d'implantation, modeImplantation, Tache.cultureId) - 2026-10-06
+[généré par IA] MEMOIRE.md (décisions du 2026-10-06) - 2026-10-06
+[généré par IA] CHECK au moins une date sur Tache (datePrevue OR dateRealisation) - 2026-10-06
+[généré par IA] DEVLOG.md et MEMOIRE.md (Tache : datePrevue, dateRealisation, CHECK, première récolte calculée) - 2026-10-06

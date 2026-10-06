@@ -32,8 +32,19 @@ fin de session. Le détail des décisions est dans [DEVLOG.md](DEVLOG.md).
     datePlancheDisponible, '[)')` construit dans la contrainte)
   - chevauchement (domaine, jalon 5) : `a < d et c < b` ;
     fin le jour J et début le jour J = pas de conflit
-- Tâches : le semis en pépinière est une tâche, pas une partie de l'intervalle
-  de la culture.
+  - `datePlancheOccupee` est la **seule** source de la date d'implantation
+    (pas de tâche « plantation »)
+  - `modeImplantation` : enum obligatoire (plantation, semis direct)
+- Culture → Tâches (1-N) : FK `Tache.cultureId` (côté N), index à prévoir ;
+  obligatoire ou non : **à trancher**
+- Tâches : événements (0 ou N par culture : semis en pépinière, désherbage,
+  récolte…). Le semis en pépinière n'est pas dans l'intervalle de la culture.
+  - `datePrevue` et `dateRealisation`, toutes deux facultatives
+    (`dateRealisation` NULL = pas encore faite ; pas de booléen)
+  - CHECK `datePrevue IS NOT NULL OR dateRealisation IS NOT NULL`
+    (migration SQL perso)
+  - pas de CHECK `dateRealisation >= datePrevue` (avance = cas normal)
+  - date de première récolte calculée (`MIN`), pas stockée
 - Conventions de nommage : français, camelCase, ASCII sans accents,
   sans abréviations.
 
@@ -41,12 +52,11 @@ fin de session. Le détail des décisions est dans [DEVLOG.md](DEVLOG.md).
 
 Traiter, dans l'ordre, les questions ouvertes du DEVLOG :
 1. ~~bornes, nom des champs, condition de chevauchement, stockage~~ (fait)
-2. **en cours** : source de vérité de la date d'implantation (tâche ou
-   culture). Question posée : les poireaux prévus le 15 mai sont plantés le
-   22 ; quelle date corriger, que devient l'autre, laquelle la contrainte
-   d'exclusion voit-elle ? Options (a) date dans Culture seule,
-   (b) date dans la tâche, (c) les deux + synchronisation.
-3. lien Tâche → Culture (obligatoire ou non)
+2. ~~source de vérité de la date d'implantation~~ (fait le 2026-10-06)
+3. **à reprendre ici** : `Tache.cultureId` obligatoire ou non ? (désherbage
+   d'une planche vide, semis en pépinière sans planche encore choisie)
+   Puis : le raisonnement « prévu / réalisé » vaut-il aussi pour
+   `Culture.datePlancheOccupee` ? (question réservée, voir DEVLOG 2026-10-06)
 4. Parcelle–Planche, Légume/Espèce/famille botanique, propriétaire du catalogue
 5. cohérence Tâche ↔ exploitation
 6. 403 ou 404 pour une ressource d'une autre exploitation
