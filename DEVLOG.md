@@ -152,3 +152,4 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 [généré par IA] DEVLOG.md et MEMOIRE.md (décision sur les bornes `[)`) - 2026-10-01
 [généré par IA] DEVLOG.md (nommage des bornes de Culture, condition de chevauchement) - 2026-10-05
 [généré par IA] Choix de stockage des dates de Culture (deux `date` vs `daterange`) - 2026-10-05
+[généré par IA] MEMOIRE.md (mise à jour après les décisions du 2026-10-05) - 2026-10-06
