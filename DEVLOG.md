@@ -222,6 +222,22 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
   Pourquoi : la stocker dans `Culture` créerait une copie qui diverge dès qu'on
   supprime ou corrige une récolte (même raisonnement que pour la plantation).
 
+- **Tableau de bord : deux blocs de récoltes, sans recouvrement.**
+  - « À venir » : `datePrevue BETWEEN aujourd'hui AND aujourd'hui + 30`
+    et `dateRealisation IS NULL`.
+  - « En retard » : `datePrevue < aujourd'hui` et `dateRealisation IS NULL`.
+  `dateRealisation IS NULL` exclut une récolte faite en avance (prévue le
+  20 oct, faite le 3). Une récolte prévue aujourd'hui n'apparaît que dans
+  « à venir » : `BETWEEN` inclut ses bornes, `<` exclut aujourd'hui.
+
+- **Filtrer « récoltes à 30 jours » par exploitation : chemin
+  `Tache.cultureId` → `Culture.plancheId` → `Planche.parcelleId` →
+  `Parcelle.exploitationId`.**
+  Sans ce filtre, chaque maraîcher voit les récoltes de tous les autres.
+  En Prisma : `where: { culture: { planche: { parcelle: { exploitationId } } } }`.
+  Suppose Parcelle → Planche en 1-N (encore N-N sur le papier).
+  (Chemin et requête donnés par l'IA à la demande.)
+
 ### Appris
 
 - **Normalisation (source unique de vérité)** : stocker un fait à un seul
@@ -245,11 +261,37 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 - **`NULL` en SQL** : `x <> NULL` vaut `NULL`, jamais vrai. Un CHECK qui vaut
   `NULL` est considéré comme satisfait : il faut écrire `IS NOT NULL`, sinon la
   contrainte laisse tout passer sans erreur.
+- **CHECK ou `WHERE`** : un CHECK refuse une ligne invalide à l'écriture. Une
+  condition de `WHERE` choisit, à la lecture, les lignes valides à afficher.
+  Une récolte déjà faite est valide : on l'exclut d'un écran, on ne l'interdit
+  pas.
+- **Une requête sans filtre d'exploitation est une fuite de données.** Quand la
+  table ne porte pas `exploitationId`, on remonte les FK jusqu'à elle.
+- **Une FK facultative casse le chemin de filtrage** : avec `cultureId` à
+  `NULL`, la tâche disparaît du résultat (`JOIN`), et même avec un `LEFT JOIN`
+  (`NULL = $1` n'est jamais vrai). Ce n'est pas une fuite, c'est une perte
+  silencieuse.
+- **FK composite** : `FOREIGN KEY ("cultureId", "exploitationId") REFERENCES
+  "Culture" (id, "exploitationId")` garantit que la tâche et sa culture sont
+  dans la même exploitation. Elle demande un `UNIQUE (id, "exploitationId")`
+  sur `Culture`. Avec `MATCH SIMPLE` (par défaut), la FK n'est pas vérifiée si
+  `cultureId` est `NULL`.
 
 ### Questions ouvertes
 
 - [ ] Le raisonnement « prévu / réalisé » vaut-il aussi pour
       `Culture.datePlancheOccupee` (et `datePlancheDisponible`) ?
+- [ ] Comment retrouver l'exploitation d'une tâche sans culture (désherbage
+      d'une planche vide, semis en pépinière) ? Options :
+      - `Tache.plancheId` facultatif : ne couvre pas la pépinière ;
+      - `Tache.exploitationId` obligatoire + FK composite vers `Culture`
+        (demande `exploitationId` sur `Culture`) : couvre tout, propage
+        `exploitationId` ;
+      - `cultureId` obligatoire : ne couvre aucun des deux cas.
+      Lié aux questions ouvertes n°3 (`cultureId` obligatoire) et n°5
+      (cohérence Tâche ↔ exploitation).
+- [ ] Compréhension : avec la FK composite, une tâche `exploitationId = A`
+      pointant vers une culture de B : que répond PostgreSQL, et pourquoi ?
 
 ---
 
@@ -263,3 +305,7 @@ Journal des décisions, blocages et erreurs. Une entrée datée par session.
 [généré par IA] MEMOIRE.md (décisions du 2026-10-06) - 2026-10-06
 [généré par IA] CHECK au moins une date sur Tache (datePrevue OR dateRealisation) - 2026-10-06
 [généré par IA] DEVLOG.md et MEMOIRE.md (Tache : datePrevue, dateRealisation, CHECK, première récolte calculée) - 2026-10-06
+[généré par IA] Chemin Tache → Exploitation et requête « récoltes à 30 jours » - 2026-10-06
+[généré par IA] Tâche sans culture : options pour retrouver l'exploitation, FK composite - 2026-10-06
+[généré par IA] DEVLOG.md (tableau de bord, filtre par exploitation, FK composite) - 2026-10-06
+[généré par IA] MEMOIRE.md (tableau de bord, filtre par exploitation, point de reprise) - 2026-10-06

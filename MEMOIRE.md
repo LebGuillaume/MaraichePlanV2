@@ -45,6 +45,12 @@ fin de session. Le détail des décisions est dans [DEVLOG.md](DEVLOG.md).
     (migration SQL perso)
   - pas de CHECK `dateRealisation >= datePrevue` (avance = cas normal)
   - date de première récolte calculée (`MIN`), pas stockée
+- Tableau de bord (récoltes, toujours avec `dateRealisation IS NULL`) :
+  « à venir » = `datePrevue BETWEEN aujourd'hui AND aujourd'hui + 30` ;
+  « en retard » = `datePrevue < aujourd'hui`
+- Filtre par exploitation d'une tâche : `Tache` → `Culture` → `Planche` →
+  `Parcelle.exploitationId` (suppose Parcelle → Planche en 1-N).
+  Casse si `cultureId` est NULL (la tâche disparaît en silence).
 - Conventions de nommage : français, camelCase, ASCII sans accents,
   sans abréviations.
 
@@ -53,12 +59,19 @@ fin de session. Le détail des décisions est dans [DEVLOG.md](DEVLOG.md).
 Traiter, dans l'ordre, les questions ouvertes du DEVLOG :
 1. ~~bornes, nom des champs, condition de chevauchement, stockage~~ (fait)
 2. ~~source de vérité de la date d'implantation~~ (fait le 2026-10-06)
-3. **à reprendre ici** : `Tache.cultureId` obligatoire ou non ? (désherbage
-   d'une planche vide, semis en pépinière sans planche encore choisie)
+3. **à reprendre ici** : trancher ensemble `Tache.cultureId` obligatoire ou
+   non ET la cohérence Tâche ↔ exploitation (ex-n°5). Options notées dans le
+   DEVLOG du 2026-10-06 : `Tache.plancheId` facultatif, ou
+   `Tache.exploitationId` obligatoire + FK composite
+   `(cultureId, exploitationId)` → `Culture (id, exploitationId)`, ou
+   `cultureId` obligatoire.
+   Question de compréhension en attente : avec la FK composite, une tâche
+   `exploitationId = A` pointant vers une culture de B, que répond PostgreSQL ?
    Puis : le raisonnement « prévu / réalisé » vaut-il aussi pour
-   `Culture.datePlancheOccupee` ? (question réservée, voir DEVLOG 2026-10-06)
-4. Parcelle–Planche, Légume/Espèce/famille botanique, propriétaire du catalogue
-5. cohérence Tâche ↔ exploitation
+   `Culture.datePlancheOccupee` ?
+4. Parcelle–Planche (le filtre par exploitation suppose du 1-N),
+   Légume/Espèce/famille botanique, propriétaire du catalogue
+5. ~~cohérence Tâche ↔ exploitation~~ (fusionnée avec la n°3)
 6. 403 ou 404 pour une ressource d'une autre exploitation
 
 Une fois le schéma papier v2 justifié : passer à `schema.prisma`, en vérifiant
@@ -68,3 +81,6 @@ d'abord la documentation actuelle de Prisma.
 
 - Mode socratique (voir CLAUDE.md). Code généré seulement avec « GÉNÈRE: ».
 - Fichiers à créer : AI_POLICY.md, IDEES.md (prévus par CLAUDE.md).
+- Point d'attention (2026-10-06) : plusieurs « GÉNÈRE: » utilisés sur de la
+  modélisation (CHECK, chemin de filtrage, options tâche sans culture).
+  Au prochain blocage : demander d'abord un indice.
